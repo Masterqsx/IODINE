@@ -44,12 +44,12 @@ def train(
     for epoch in range(start_epoch, max_epochs):
         epoch = epoch + 1
         model.train()
-        
+
         for iter, data in enumerate(dataloader):
-            
+
             # Note, first one is image. This is not neat. Just for convenience.
             data = data[0]
-            
+
             if iter > len(dataloader):
                 break
             iter = iter + 1
@@ -61,14 +61,14 @@ def train(
             loss = loss.mean()
             optimizer.zero_grad()
             loss.backward()
-            # clip_grad_norm_(model.parameters(), 5.0)
+            clip_grad_norm_(model.parameters(), 5.0)
             optimizer.step()
-            
+
             batch_time = time.perf_counter() - start_time
             loss= loss.item()
             meters.update(loss=loss)
             meters.update(batch_time=batch_time)
-            
+
             # display logs
             if iter % print_every == 0:
                 # we will compute estimated time
@@ -90,20 +90,21 @@ def train(
                     batch_time=meters['batch_time'].median,
                     lr=optimizer.param_groups[0]['lr']
                 ))
-                
+
                 # tensorboard
                 tb_data = getter.get_tensorboard_data()
                 if not tensorboard is None:
-                    tensorboard.update(var=model.module.sigma)
+                    tensorboard.update(var=model.sigma)
                     tensorboard.update(loss=meters['loss'].median)
                     tensorboard.update(**tb_data)
                     tensorboard.add('train', global_iter)
-                    
+
             # checkpoint
         if checkpointer is not None:
             checkpointer.args['epoch'] = epoch
             checkpointer.save('model_{:04d}'.format(epoch))
-            
+
         if dataloader_val is not None and evaluator is not None:
             evaluate(model, device, dataloader_val, evaluator)
-            tensorboard.update(**evaluator.get_result_dict())
+            if not tensorboard is None:
+                tensorboard.update(**evaluator.get_result_dict())

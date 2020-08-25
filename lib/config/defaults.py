@@ -107,8 +107,11 @@ _C.DATASET = CN()
 _C.DATASET.TRAIN = 'MNIST'
 _C.DATASET.VAL = 'MNIST'
 _C.DATASET.TEST = 'MNIST'
-
-
+_C.DATASET.CLEVR_DEEPMIND_DIR = ""
+_C.DATASET.DSPRITES_DEEPMIND_DIR = ""
+_C.DATASET.TYPE = ""
+_C.DATASET.FIXED_LEN = 7
+_C.DATASET.HAS_BBOX = False
 # -----------------------------------------------------------------------------
 # DataLoader
 # -----------------------------------------------------------------------------

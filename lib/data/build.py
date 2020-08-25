@@ -17,22 +17,22 @@ def make_dataloader(cfg, mode):
     # build dataset
     dataset = make_dataset(cfg, mode)
     num_workers = cfg.DATALOADER.NUM_WORKERS
-    dataloader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=shuffle, num_workers=num_workers)
+    dataloader = DataLoader(dataset, batch_size=batch_size, collate_fn=dataset.collate_fn, shuffle=shuffle, drop_last=True, num_workers=num_workers)
     
     return dataloader
 
-def collate_fn(batch):
-    """
-    :param batch: list, each being a tuple (data, mask)
-        data: (*), image
-        mask: (*), mask
-    :return: (data, mask), where mask is a list
-    """
-    
-    data, mask = zip(*batch)
-    data = torch.stack(data, dim=0)
-    
-    return data, mask
+# def collate_fn(batch):
+#     """
+#     :param batch: list, each being a tuple (data, mask)
+#         data: (*), image
+#         mask: (*), mask
+#     :return: (data, mask), where mask is a list
+#     """
+#
+#     data, mask = zip(*batch)
+#     data = torch.stack(data, dim=0)
+#
+#     return data, mask
     
     
 
@@ -40,6 +40,6 @@ def make_dataset(cfg, mode):
     if cfg.DATASET.TRAIN == 'MNIST':
         return MNIST('data/MNIST', mode)
     elif cfg.DATASET.TRAIN == 'CLEVR':
-        return CLEVR('data/CLEVR', mode)
+        return CLEVR(cfg)
     elif cfg.DATASET.TRAIN == 'DSPRITES':
-        return MultiDSprites('data/DSPRITES', mode)
+        return MultiDSprites(cfg)

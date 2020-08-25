@@ -5,52 +5,120 @@ import os
 import numpy as np
 import torch
 from PIL import Image, ImageFile
+import logging
+import lmdb
+import pickle
+from torch.nn import functional as F
+from ..config import cfg as cf
+import tqdm
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-class CLEVR(Dataset):
-    def __init__(self, root, mode):
-        # path = os.path.join(root, mode)
-        self.root = root
-        assert os.path.exists(root), 'Path {} does not exist'.format(root)
-        
-        self.img_paths = []
-        for file in os.scandir(os.path.join(root, 'images')):
-            img_path = file.path
-            self.img_paths.append(img_path)
-            
-        self.img_paths.sort()
-        
-    def __getitem__(self, index):
-        img_path = self.img_paths[index]
-        img = io.imread(img_path)[:, :, :3]
-        transform = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.CenterCrop(192),
-            transforms.Resize(128),
-            transforms.ToTensor(),
-        ])
-        img = transform(img)
+class CLEVR_DEEPMIND_Crop:
+    def __call__(self, sample):
+        # Assuming the sample single image is 3D tensor, even for greyscale image
+        crop_img = sample[:, 29:221, 64:256].unsqueeze(dim=0)
+        crop_img = F.interpolate(crop_img, size=(128, 128), mode='bilinear', align_corners=True)[0]
+        if crop_img.shape[0] == 1:
+            crop_img[crop_img > 0.] = 1.
+        return crop_img
 
-        mask_transform = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.CenterCrop(192),
-            transforms.Resize(128, interpolation=Image.NEAREST),
-        ])
-        filename = os.path.split(img_path)[-1]
-        mask_path = os.path.join(self.root, 'masks', filename)
-        mask = None
-        if os.path.exists(mask_path):
-            mask = io.imread(mask_path)
-            mask = self.sep(mask)
-            mask = [np.array(mask_transform(x[:, :, None].astype(np.uint8))) for x in mask]
-            mask = np.stack(mask, axis=0)
-            mask = torch.from_numpy(mask.astype(np.float)).float()
-        # mask = None
+class CLEVR(Dataset):
+    def __init__(self, cfg):
+        # path = os.path.join(root, mode)
+        self.clevr_dir = cfg.DATASET.CLEVR_DEEPMIND_DIR
+        self.img_transform = transforms.Compose(
+            [
+                transforms.ToTensor()
+                , CLEVR_DEEPMIND_Crop()
+            ])
+        self.mask_transform = transforms.Compose(
+            [
+                transforms.ToTensor()
+                , CLEVR_DEEPMIND_Crop()
+            ])
+        self.fixed_mask_len = cfg.DATASET.FIXED_LEN
+        self.env = lmdb.open(os.path.join(self.clevr_dir, "clevr_deepmind_lmdb"), max_readers=16, readonly=True,
+                             lock=False)
+        type = cfg.DATASET.TYPE
+
+        if type == "clevr":
+            with open(os.path.join(self.clevr_dir, "clevr_deepmind_scene_props.p"), "rb") as f:
+                self.scene_props = pickle.load(f)
+        elif type == "clevr6":
+            with open(os.path.join(self.clevr_dir, "clevr6_deepmind_scene_props.p"), "rb") as f:
+                self.scene_props = pickle.load(f)
+        elif type == "clevr6_train0":
+            with open(os.path.join(self.clevr_dir, "clevr6_deepmind_trainset_scene_props_0.p"), "rb") as f:
+                self.scene_props = pickle.load(f)
+        elif type == "clevr6_test0":
+            with open(os.path.join(self.clevr_dir, "clevr6_deepmind_testset_scene_props_0.p"), "rb") as f:
+                self.scene_props = pickle.load(f)
+        elif type == "clevr6_train0_bbox":
+            with open(os.path.join(self.clevr_dir, "clevr6_deepmind_trainset_bbox_scene_props_0.p"), "rb") as f:
+                self.scene_props = pickle.load(f)
+        elif type == "clevr6_test0_bbox":
+            with open(os.path.join(self.clevr_dir, "clevr6_deepmind_testset_bbox_scene_props_0.p"), "rb") as f:
+                self.scene_props = pickle.load(f)
+
+        if not self.env:
+            logging.error("Cannot open lmdb on : " + os.path.join(self.clevr_dir, "clevr_deepmind_lmdb"))
+            raise FileNotFoundError()
+        self.has_bbox = cfg.DATASET.HAS_BBOX
+
+    def __del__(self):
+        try:
+            self.env.close()
+        except:
+            logging.warning("lmdb can not be closed")
         
-        return img, mask
+    def __getitem__(self, idx):
+        object_props = self.scene_props[idx]
+        image_id = object_props[0]["image_id"]
+        with self.env.begin(write=False) as txn:
+            img = Image.frombytes('RGB', (320, 240), txn.get(("image" + str(image_id)).encode()))
+            if self.img_transform is not None:
+                img = self.img_transform(img)
+            masks = []
+            if self.has_bbox:
+                bboxs = []
+            for object_idx in range(len(object_props)):
+                if self.has_bbox:
+                    bboxs.append(object_props[object_idx]["bounding_box"])
+                obj_id = object_props[object_idx]["object_id"]
+                mask = Image.frombytes('L', (320, 240), txn.get(("mask" + str(image_id) + "_" + str(obj_id)).encode()))
+                if self.mask_transform is not None:
+                    mask = self.mask_transform(mask)
+                masks.append(mask[0])
+
+            # Add dummy mask for ARI metrics as pytorch tensor
+            # Must be used with ToTensor in pytorch transform
+            if self.fixed_mask_len is not None and self.fixed_mask_len > len(object_props):
+                for dummy_mask_idx in range(len(object_props), self.fixed_mask_len):
+                    masks.append(torch.zeros(128, 128))
+                    if self.has_bbox:
+                        bboxs.append((-1, -1, -1, -1))
+        if self.has_bbox:
+            return img, masks, bboxs
+        return img, masks
         
     def __len__(self):
-        return len(self.img_paths)
+        return len(self.scene_props)
+
+    def collate_fn(self, batch):
+        img_tensor_list = []
+        masks_list = []
+        if self.has_bbox:
+            bboxs_list = []
+            for img_tensor, masks, bboxs in batch:
+                img_tensor_list.append(img_tensor)
+                masks_list.append(torch.stack(masks))
+                bboxs_list.append(bboxs)
+            return torch.stack(img_tensor_list), masks_list, bboxs_list
+
+        for img_tensor, masks in batch:
+            img_tensor_list.append(img_tensor)
+            masks_list.append(torch.stack(masks))
+        return torch.stack(img_tensor_list), masks_list
 
     def sep(self, img):
         """
@@ -79,6 +147,4 @@ class CLEVR(Dataset):
             masks.append(mask)
     
         return masks
-    
-    
     

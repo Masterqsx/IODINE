@@ -67,14 +67,14 @@ class Checkpointer:
         # load model weight to the model
         self.model.load_state_dict(checkpoint.pop('model'))
         # self._load_model(checkpoint)
-        if 'optimizer' in checkpoint and self.optimizer:
-            # if there is a optimizer, load state dict into the optimizer
-            print("Loading optimizer from {}".format(f))
-            self.optimizer.load_state_dict(checkpoint.pop('optimizer'))
-        if 'scheduler' in checkpoint and self.scheduler:
-            # if there is a optimizer, load state dict into it
-            print("Loading scheduler from {}".format(f))
-            self.scheduler.load_state_dict(checkpoint.pop('scheduler'))
+        # if 'optimizer' in checkpoint and self.optimizer:
+        #     # if there is a optimizer, load state dict into the optimizer
+        #     print("Loading optimizer from {}".format(f))
+        #     self.optimizer.load_state_dict(checkpoint.pop('optimizer'))
+        # if 'scheduler' in checkpoint and self.scheduler:
+        #     # if there is a optimizer, load state dict into it
+        #     print("Loading scheduler from {}".format(f))
+        #     self.scheduler.load_state_dict(checkpoint.pop('scheduler'))
             
         # there might be other arguments to be saved
         self.args.update(checkpoint)

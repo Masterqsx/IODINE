@@ -1,6 +1,7 @@
 from tensorboardX import SummaryWriter
 from easydict import EasyDict
 import os
+import torch
 
 
 class TensorBoard:
@@ -34,6 +35,9 @@ class TensorBoard:
                 self.writer.add_scalar(pattern.format(scalar), self.data[scalar], global_step)
         for image in self.images:
             if image in self.data:
+                if len(self.data[image].shape) != 3:
+                    self.data[image] = torch.unsqueeze(self.data[image], 0)
                 self.writer.add_image(pattern.format(image), self.data[image], global_step)
+        self.writer.flush()
                 
         

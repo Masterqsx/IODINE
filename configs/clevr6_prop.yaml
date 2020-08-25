@@ -4,25 +4,30 @@ EXP:
 MODEL:
   NAME: "IODINE"
   DEVICE: "cuda"
-  PARALLEL: True
+  PARALLEL: False
   DEVICE_IDS: []
 DATASET:
   TRAIN: "CLEVR"
   VAL: "CLEVR"
   TEST: "CLEVR"
+  CLEVR_DEEPMIND_DIR: "/home/qsxyh123/Developing/multi_object_datasets"
+  TYPE: "clevr6_train0"
+  FIXED_LEN: 7
+  HAS_BBOX: False
 TRAIN:
   RESUME: True
   # per epoch
   CHECKPOINT_PERIOD: 10
-  BATCH_SIZE: 32
+  NUM_CHECKPOINTS: 100
+  BATCH_SIZE: 20
   MAX_EPOCHS: 1000
   BASE_LR: 3e-4
   WEIGHT_DECAY: 0.0000
   PRINT_EVERY: 20
   VAL_EVERY: 1000
 VAL:
-  IS_ON: False
-  BATCH_SIZE: 128
+  IS_ON: True
+  BATCH_SIZE: 20
 ARCH:
   ITERS: 5
   SLOTS: 7
@@ -74,7 +79,7 @@ TENSORBOARD:
   IS_ON: True
   TARGETS:
     SCALAR: [
-      "loss", "kl", "likelihood"]
+      "loss", "kl", "likelihood", "ari"]
     IMAGE: [
       'image', 'pred', 'gen',
       'mask_0', 'mask_1', 'mask_2','mask_3', 'mask_4','mask_5','mask_6',

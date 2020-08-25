@@ -1,28 +1,33 @@
 # use all encodings
 EXP:
-  NAME: 'dsprites_noclip'
+  NAME: 'dsprites'
 MODEL:
   NAME: "IODINE"
   DEVICE: "cuda"
-  PARALLEL: True
+  PARALLEL: False
   DEVICE_IDS: []
 DATASET:
   TRAIN: "DSPRITES"
-  VAL: "CLEVR"
+  VAL: "DSPRITES"
   TEST: "DSPRITES"
+  DSPRITES_DEEPMIND_DIR: "/home/qsxyh123/Developing/multi_object_datasets"
+  TYPE: "multi_dsprites_deepmind_on_gray_trainset_scene_props_0.p"
+  FIXED_LEN: 6
+  HAS_BBOX: False
 TRAIN:
   RESUME: True
   # per epoch
   CHECKPOINT_PERIOD: 10
-  BATCH_SIZE: 32
+  NUM_CHECKPOINTS: 100
+  BATCH_SIZE: 64
   MAX_EPOCHS: 1000
-  BASE_LR: 3e-4
+  BASE_LR: 1e-4
   WEIGHT_DECAY: 0.0000
   PRINT_EVERY: 20
   VAL_EVERY: 1000
 VAL:
-  IS_ON: False
-  BATCH_SIZE: 128
+  IS_ON: True
+  BATCH_SIZE: 64
 ARCH:
   ITERS: 5
   SLOTS: 6
@@ -37,12 +42,12 @@ ARCH:
     CONV_CHAN: 32
     CONV_LAYERS: 3
     MLP_UNITS: 128
-    KERNEL_SIZE: 3
+    KERNEL_SIZE: 3 #3
     STRIDE: 2
   DEC:
     CONV_CHAN: 32
     CONV_LAYERS: 5
-    KERNEL_SIZE: 3
+    KERNEL_SIZE: 3 #3
   ENCODING: [
     # layer normalized graident of posterior
     'posterior',
@@ -74,8 +79,7 @@ TENSORBOARD:
   IS_ON: True
   TARGETS:
     SCALAR: [
-      "loss", "kl", "likelihood",
-      'init_mean', 'init_logvar']
+      "loss", "kl", "likelihood", "ari"]
     IMAGE: [
       'image', 'pred', 'gen',
       'mask_0', 'mask_1', 'mask_2','mask_3', 'mask_4','mask_5','mask_6',
